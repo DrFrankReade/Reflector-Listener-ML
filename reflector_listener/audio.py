@@ -11,10 +11,13 @@ import ctypes
 import os
 import queue
 import threading
+import time
 from dataclasses import dataclass
 from typing import Callable, Optional
 
 from .config import BufferConfig
+from .audio_devices import resolve_audio_device, open_with_default
+from .audio_levels import pcm16_level, scale_pcm16, validated_gain
 
 
 SAMPLE_RATE = 8_000
@@ -72,6 +75,7 @@ class _ResetItem:
 class _WaveBlock:
     storage: ctypes.Array
     header: "WAVEHDR"
+    level: float = 0.0
 
 
 class WaveOutPlayer:
@@ -97,10 +101,15 @@ class WaveOutPlayer:
         *,
         config: Optional[BufferConfig] = None,
         sample_rate: int = SAMPLE_RATE,
+        device_id: str = "",
+        on_level: Optional[Callable[[float], None]] = None,
     ) -> None:
         if os.name != "nt":
             raise AudioError("waveOut audio is available only on Windows")
         self._on_error = on_error or (lambda _message: None)
+        self._on_level = on_level or (lambda _level: None)
+        self._device_id = str(device_id)
+        self._device_revision = 0
         if sample_rate not in (8_000, 48_000):
             raise ValueError("Playback sample rate must be 8000 or 48000 Hz")
         self.sample_rate = sample_rate
@@ -144,6 +153,14 @@ class WaveOutPlayer:
         )
         self._thread.start()
 
+    def set_device(self, device_id: str) -> None:
+        """Reopen playback on the worker without changing stream ownership."""
+        with self._lock:
+            if device_id != self._device_id:
+                self._device_id = str(device_id)
+                self._device_revision += 1
+                self._failure_latched = False
+
     def begin_stream(self) -> int:
         """Start a logical stream and discard queued audio from older streams."""
         with self._lock:
@@ -158,6 +175,7 @@ class WaveOutPlayer:
             self._generation += 1
             generation = self._generation
         self._replace_queue_with(_ResetItem(generation))
+        self._on_level(0.0)
 
     def retry(self) -> None:
         """Allow one fresh device-open attempt after an explicit reconnect."""
@@ -171,6 +189,8 @@ class WaveOutPlayer:
                 return
             self._muted = muted
             self._replace_queue_with(_ResetItem(self._generation))
+        if muted:
+            self._on_level(0.0)
 
     def submit(self, pcm: bytes, generation: Optional[int] = None) -> bool:
         if len(pcm) != self.bytes_per_frame:
@@ -221,6 +241,7 @@ class WaveOutPlayer:
         if self._thread:
             self._thread.join(timeout=2.0)
         self._thread = None
+        self._on_level(0.0)
 
     def _replace_queue_with(self, control: object) -> None:
         while True:
@@ -279,22 +300,34 @@ class WaveOutPlayer:
         device_generation = self.generation
         header_size = ctypes.sizeof(WAVEHDR)
 
+        def open_output(preferred):
+            handle.value = None
+            return winmm.waveOutOpen(ctypes.byref(handle), preferred,
+                                     ctypes.byref(wave_format), 0, 0, self._CALLBACK_NULL)
+
+        with self._lock:
+            desired, revision = self._device_id, self._device_revision
+        resolved = resolve_audio_device('output', desired)
+        next_device_check = time.monotonic() + 0.5
+
         try:
-            self._check(
-                winmm.waveOutOpen(
-                    ctypes.byref(handle),
-                    self._WAVE_MAPPER,
-                    ctypes.byref(wave_format),
-                    0,
-                    0,
-                    self._CALLBACK_NULL,
-                ),
-                "waveOutOpen",
-            )
+            result, active_device = open_with_default(open_output, resolved)
+            self._check(result, "waveOutOpen")
 
             while not self._stop.is_set():
                 with self._lock:
                     muted = self._muted
+                    requested, requested_revision = self._device_id, self._device_revision
+                now = time.monotonic()
+                if requested_revision != revision or now >= next_device_check:
+                    wanted = resolve_audio_device('output', requested)
+                    next_device_check = now + 0.5
+                    if requested_revision != revision or wanted != resolved:
+                        self._reset(winmm, handle, pending, header_size)
+                        winmm.waveOutClose(handle)
+                        result, active_device = open_with_default(open_output, wanted)
+                        self._check(result, "waveOutOpen")
+                        resolved, revision = wanted, requested_revision
                 if muted:
                     if pending:
                         self._reset(winmm, handle, pending, header_size)
@@ -325,7 +358,16 @@ class WaveOutPlayer:
                 if device_generation != item.generation:
                     self._reset(winmm, handle, pending, header_size)
                     device_generation = item.generation
-                self._write(winmm, handle, pending, item.pcm, header_size)
+                try:
+                    self._write(winmm, handle, pending, item.pcm, header_size)
+                except AudioError:
+                    if active_device == self._WAVE_MAPPER:
+                        raise
+                    self._reset(winmm, handle, pending, header_size)
+                    winmm.waveOutClose(handle)
+                    self._check(open_output(self._WAVE_MAPPER), "waveOutOpen default")
+                    active_device = self._WAVE_MAPPER
+                    self._write(winmm, handle, pending, item.pcm, header_size)
         except Exception as exc:  # audio failure should not kill UDP reception
             self._failure_latched = True
             self._on_error(str(exc))
@@ -337,6 +379,7 @@ class WaveOutPlayer:
                 except Exception:
                     pass
             self._drained.set()
+            self._on_level(0.0)
 
     def _write(
         self,
@@ -350,7 +393,7 @@ class WaveOutPlayer:
         header = WAVEHDR()
         header.lpData = ctypes.addressof(storage)
         header.dwBufferLength = len(pcm)
-        block = _WaveBlock(storage, header)
+        block = _WaveBlock(storage, header, pcm16_level(pcm))
         self._check(
             winmm.waveOutPrepareHeader(handle, ctypes.byref(header), header_size),
             "waveOutPrepareHeader",
@@ -363,6 +406,8 @@ class WaveOutPlayer:
         except Exception:
             winmm.waveOutUnprepareHeader(handle, ctypes.byref(header), header_size)
             raise
+        if not pending:
+            self._on_level(block.level)
         pending.append(block)
 
     def _reap(
@@ -381,6 +426,7 @@ class WaveOutPlayer:
             else:
                 remaining.append(block)
         pending[:] = remaining
+        self._on_level(remaining[0].level if remaining else 0.0)
 
     def _reset(
         self,
@@ -395,6 +441,7 @@ class WaveOutPlayer:
                 handle, ctypes.byref(block.header), header_size
             )
         pending.clear()
+        self._on_level(0.0)
 
 
 class WaveInRecorder:
@@ -411,11 +458,18 @@ class WaveInRecorder:
         on_frame: Callable[[bytes], None],
         on_error: Optional[Callable[[str], None]] = None,
         buffer_count: int = 6,
+        *,
+        device_id: str = "",
+        gain: float = 1.0,
+        on_level: Optional[Callable[[float], None]] = None,
     ) -> None:
         if os.name != "nt":
             raise AudioError("waveIn audio is available only on Windows")
         self._on_frame = on_frame
         self._on_error = on_error or (lambda _message: None)
+        self._on_level = on_level or (lambda _level: None)
+        self._device_id = str(device_id)
+        self._gain = validated_gain(gain)
         self._buffer_count = max(3, int(buffer_count))
         self._stop = threading.Event()
         self._lock = threading.Lock()
@@ -436,6 +490,23 @@ class WaveInRecorder:
             )
             self._thread.start()
 
+    def set_device(self, device_id: str) -> None:
+        """Select the input used on the next start; stop before changing live input."""
+        with self._lock:
+            self._device_id = str(device_id)
+
+    def set_gain(self, gain: float) -> None:
+        value = validated_gain(gain)
+        with self._lock:
+            self._gain = value
+
+    def _deliver(self, pcm: bytes) -> None:
+        with self._lock:
+            gain = self._gain
+        pcm = scale_pcm16(pcm, gain)
+        self._on_level(pcm16_level(pcm))
+        self._on_frame(pcm)
+
     def stop(self) -> None:
         self._stop.set()
         with self._lock:
@@ -445,6 +516,7 @@ class WaveInRecorder:
         with self._lock:
             if self._thread is thread and (thread is None or not thread.is_alive()):
                 self._thread = None
+        self._on_level(0.0)
 
     @staticmethod
     def _check(result: int, operation: str) -> None:
@@ -485,25 +557,51 @@ class WaveInRecorder:
         winmm.waveInClose.argtypes = [ctypes.c_void_p]
         winmm.waveInClose.restype = ctypes.c_uint
 
-        try:
-            self._check(
-                winmm.waveInOpen(
-                    ctypes.byref(handle), self._WAVE_MAPPER,
-                    ctypes.byref(wave_format), 0, 0, self._CALLBACK_NULL,
-                ),
-                "waveInOpen",
-            )
+        def close_input():
+            if handle.value:
+                winmm.waveInReset(handle)
+                for block in blocks:
+                    if block.header.dwFlags & 2:  # WHDR_PREPARED
+                        winmm.waveInUnprepareHeader(handle, ctypes.byref(block.header), header_size)
+                winmm.waveInClose(handle)
+                handle.value = None
+
+        def start_input(preferred):
+            def open_input(index):
+                handle.value = None
+                return winmm.waveInOpen(ctypes.byref(handle), index,
+                                       ctypes.byref(wave_format), 0, 0, self._CALLBACK_NULL)
+            result, _ = open_with_default(open_input, preferred)
+            self._check(result, "waveInOpen")
             for block in blocks:
+                block.header = WAVEHDR()
+                block.header.lpData = ctypes.addressof(block.storage)
+                block.header.dwBufferLength = BYTES_PER_FRAME
                 self._queue_input_block(winmm, handle, block, header_size)
             self._check(winmm.waveInStart(handle), "waveInStart")
 
+        try:
+            with self._lock:
+                desired = self._device_id
+            preferred = resolve_audio_device('input', desired)
+            start_input(preferred)
+            next_device_check = time.monotonic() + 0.5
+
             while not self._stop.wait(0.002):
+                if desired and time.monotonic() >= next_device_check:
+                    wanted = resolve_audio_device('input', desired)
+                    next_device_check = time.monotonic() + 0.5
+                    if wanted != preferred:
+                        close_input()
+                        self._on_level(0.0)
+                        start_input(wanted)
+                        preferred = wanted
                 for block in blocks:
                     if not block.header.dwFlags & self._WHDR_DONE:
                         continue
                     recorded = int(block.header.dwBytesRecorded)
                     if recorded == BYTES_PER_FRAME:
-                        self._on_frame(bytes(block.storage.raw[:recorded]))
+                        self._deliver(bytes(block.storage.raw[:recorded]))
                     self._check(
                         winmm.waveInUnprepareHeader(
                             handle, ctypes.byref(block.header), header_size
@@ -517,17 +615,11 @@ class WaveInRecorder:
         except Exception as exc:
             self._on_error(str(exc))
         finally:
-            if handle.value:
-                winmm.waveInReset(handle)
-                for block in blocks:
-                    if block.header.dwFlags:
-                        winmm.waveInUnprepareHeader(
-                            handle, ctypes.byref(block.header), header_size
-                        )
-                winmm.waveInClose(handle)
+            close_input()
             with self._lock:
                 if self._thread is threading.current_thread():
                     self._thread = None
+            self._on_level(0.0)
 
     def _queue_input_block(
         self,

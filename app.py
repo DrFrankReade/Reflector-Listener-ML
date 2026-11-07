@@ -14,6 +14,8 @@ import os
 import queue
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 
 
@@ -168,14 +170,23 @@ class ListenerApp(LayoutMixin, MessagesMixin, ComposerMixin, EventHandlersMixin)
             raise
 
         self.buffer_config = load_buffer_config(BUFFER_CONFIG_PATH)
+        self._level_lock = threading.Lock()
+        self._levels = {}
+        self._preview_microphone = None
+        self._preview_device_id = ""
         self.audio = ReceiveAudioPlayer(
-            on_error=self._on_audio_error, on_warning=self._on_ml_warning, config=self.buffer_config
+            on_error=self._on_audio_error, on_warning=self._on_ml_warning, config=self.buffer_config,
+            device_id=self.preferences.receive_device,
+            on_level=lambda level: self._record_level("receive", level),
         )
         self.audio.set_ml_enabled(self.preferences.ml_enhanced_decoder)
         self._app_receiver = RsMs1Receiver()
         self.stream_log = BinaryStreamLog(APP_DIR / "logs" / "streams")
         self.replay = ReplayController(self.stream_log, on_playing=self.audio.set_muted,
-                                       on_warning=self._on_ml_warning)
+                                       on_warning=self._on_ml_warning,
+                                       on_level=lambda level: self._record_level("replay", level))
+        self.replay.set_device(self.preferences.receive_device)
+        self.replay.set_packet_loss_concealment(self.preferences.packet_loss_concealment)
         self.replay.set_ml_enabled(self.preferences.ml_enhanced_decoder)
         self.replay.set_gain(self.gain_var.get())
         self.session = ReflectorSession(
@@ -191,7 +202,9 @@ class ListenerApp(LayoutMixin, MessagesMixin, ComposerMixin, EventHandlersMixin)
         )
         self._send_operation: SendOperation | None = None
         self.microphone = WaveInRecorder(
-            self._transmit_pcm, on_error=self._on_microphone_error
+            self._transmit_pcm, on_error=self._on_microphone_error,
+            device_id=self.preferences.transmit_device, gain=self.preferences.transmit_gain,
+            on_level=lambda level: self._record_level("transmit", level),
         )
         self._ptt_held = False
         self._ptt_timed_out = False
@@ -222,6 +235,7 @@ class ListenerApp(LayoutMixin, MessagesMixin, ComposerMixin, EventHandlersMixin)
 
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.root.after(50, self._drain_events)
+        self._meter_timer = self.root.after(40, self._update_audio_meters)
 
 
     def _load_host_directory(self) -> None:
@@ -347,6 +361,44 @@ class ListenerApp(LayoutMixin, MessagesMixin, ComposerMixin, EventHandlersMixin)
     def _on_ml_warning(self, message: str) -> None:
         self._events.put(SessionEvent("warning", message))
 
+    def _record_level(self, source: str, level: float) -> None:
+        # Audio workers publish numbers only; Tk widgets stay on the UI thread.
+        with self._level_lock:
+            self._levels[source] = (max(0.0, min(1.0, float(level))), time.monotonic())
+
+    def _read_level(self, source: str) -> float:
+        with self._level_lock:
+            level, stamp = self._levels.get(source, (0.0, 0.0))
+        return level if time.monotonic() - stamp < 0.2 else 0.0
+
+    def _update_audio_meters(self) -> None:
+        if self._closing:
+            return
+        level = (self._read_level("transmit") if self._ptt_held
+                 else max(self._read_level("receive"), self._read_level("replay")))
+        self.output_meter.set_level(level)
+        self._meter_timer = self.root.after(40, self._update_audio_meters)
+
+    def _configure_audio_preview(self, device_id: str, gain: float, enabled: bool) -> None:
+        """Monitor a settings draft locally; this recorder never reaches PTT."""
+        recorder = self._preview_microphone
+        if enabled and recorder is not None and device_id == self._preview_device_id:
+            recorder.set_gain(gain)
+            return
+        if recorder is not None:
+            recorder.stop()
+            self._preview_microphone = None
+        self._record_level("preview", 0.0)
+        if not enabled or self._closing or self._ptt_held:
+            return
+        self._preview_device_id = device_id
+        self._preview_microphone = WaveInRecorder(
+            lambda pcm: None, device_id=device_id, gain=gain,
+            on_level=lambda level: self._record_level("preview", level),
+            on_error=lambda message: self._on_ml_warning(f"Microphone preview: {message}"),
+        )
+        self._preview_microphone.start()
+
     def _on_microphone_error(self, message: str) -> None:
         self._events.put(SessionEvent("error", f"Microphone input failed: {message}"))
         self.session.stop_transmit(reason="microphone error")
@@ -362,6 +414,8 @@ class ListenerApp(LayoutMixin, MessagesMixin, ComposerMixin, EventHandlersMixin)
             return "break"
         if self._ptt_held or self._ptt_timed_out:
             return "break"
+        if getattr(self, "_preview_microphone", None) is not None:
+            self._configure_audio_preview("", 1.0, False)
         try:
             self.session.start_transmit()
             self.microphone.start()
@@ -466,6 +520,8 @@ class ListenerApp(LayoutMixin, MessagesMixin, ComposerMixin, EventHandlersMixin)
             module=self.local_module_var.get(), debug=self.debug_packet_log_var.get(),
             connected=self.session.state not in (ConnectionState.DISCONNECTED, ConnectionState.ERROR),
             on_save=self._apply_settings, open_logs=self._open_logs_folder, clear_logs=self._clear_log,
+            on_audio_preview=self._configure_audio_preview,
+            get_microphone_level=lambda: self._read_level("preview"),
         )
 
     def _apply_settings(self, preferences: Preferences, callsign: str, module: str, debug: bool) -> None:
@@ -476,6 +532,18 @@ class ListenerApp(LayoutMixin, MessagesMixin, ComposerMixin, EventHandlersMixin)
         self.callsign_var.set(callsign)
         self.local_module_var.set(module)
         self.preferences = preferences
+        if preferences.receive_device != old.receive_device:
+            self.audio.set_device(preferences.receive_device)
+            self.replay.set_device(preferences.receive_device)
+        if preferences.transmit_device != old.transmit_device:
+            active = self.microphone.active
+            if active:
+                self.microphone.stop()
+            self.microphone.set_device(preferences.transmit_device)
+            if active and self._ptt_held:
+                self.microphone.start()
+        self.microphone.set_gain(preferences.transmit_gain)
+        self.replay.set_packet_loss_concealment(preferences.packet_loss_concealment)
         if preferences.ml_enhanced_decoder != old.ml_enhanced_decoder:
             self.audio.set_ml_enabled(preferences.ml_enhanced_decoder)
             self.replay.set_ml_enabled(preferences.ml_enhanced_decoder)
@@ -544,6 +612,9 @@ class ListenerApp(LayoutMixin, MessagesMixin, ComposerMixin, EventHandlersMixin)
         if self._closing:
             return
         self._closing = True
+        self._configure_audio_preview("", 1.0, False)
+        if hasattr(self, "_meter_timer"):
+            self.root.after_cancel(self._meter_timer)
         self._send_controller.cancel()
         self._save_settings()
         if self.session.is_packet_logging_enabled():

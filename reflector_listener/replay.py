@@ -32,13 +32,18 @@ class ReplayController:
 
     def __init__(self, archive: BinaryStreamLog, *, decoder_factory: Callable = AmbeDecoder,
                  player_factory: Callable = ReceiveAudioPlayer, on_playing: Callable[[bool], None] | None = None,
-                 on_warning: Callable[[str], None] | None = None) -> None:
+                 on_warning: Callable[[str], None] | None = None,
+                 on_level: Callable[[float], None] | None = None) -> None:
         self.archive = archive
         self._decoder_factory = decoder_factory
         self._player_factory = player_factory
         self._on_playing = on_playing or (lambda playing: None)
         self._on_warning = on_warning or (lambda message: None)
         self._ml_enabled = False
+        self._device_id = ""
+        self._packet_loss_concealment = True
+        self._on_level = on_level or (lambda level: None)
+        self._player = None
         self._announced_playing = False
         self._condition = threading.Condition()
         self._clip: Recording | RecordingGroup | None = None
@@ -61,6 +66,17 @@ class ReplayController:
         """Choose the receive mode for the next playback or seek."""
         with self._condition:
             self._ml_enabled = bool(enabled)
+
+    def set_device(self, device_id: str) -> None:
+        with self._condition:
+            self._device_id = device_id
+            player = self._player
+        if player is not None and hasattr(player, "set_device"):
+            player.set_device(device_id)
+
+    def set_packet_loss_concealment(self, enabled: bool) -> None:
+        with self._condition:
+            self._packet_loss_concealment = bool(enabled)
 
     def _publish_playing(self) -> None:
         """Called with the condition held; callback must not call back into replay."""
@@ -116,7 +132,13 @@ class ReplayController:
             options = dict(max_device_frames=3, max_queued_frames=8, on_error=self._audio_error)
             if self._player_factory is ReceiveAudioPlayer:
                 options["on_warning"] = self._on_warning
+                options["on_level"] = self._on_level
+                options["device_id"] = self._device_id
             player = self._player_factory(**options)
+            with self._condition:
+                self._player = player
+                if hasattr(player, "set_device"):
+                    player.set_device(self._device_id)
             while True:
                 command = self._wait_for_playback(player)
                 if command is None:
@@ -169,6 +191,8 @@ class ReplayController:
                 set_ml_enabled(self._ml_enabled)
         generation = player.begin_stream()
         decoder.begin_stream(1)
+        if set_plc := getattr(decoder, "set_packet_loss_concealment", None):
+            set_plc(self._packet_loss_concealment)
         # Warm codec state before the seek point, without playing it.
         for slot in range(max(0, cursor - 10), cursor):
             self._decode(decoder, clip, index.get(slot))
@@ -179,6 +203,8 @@ class ReplayController:
                 if self._closed or self._revision != revision:
                     break
                 decoder.set_gain(self._gain)
+                if set_plc := getattr(decoder, "set_packet_loss_concealment", None):
+                    set_plc(self._packet_loss_concealment)
             result = self._decode(decoder, clip, index.get(cursor))
             with self._condition:
                 if self._closed or self._revision != revision:
@@ -219,6 +245,8 @@ class ReplayController:
 
     def _close_playback_devices(self, player, decoder) -> None:
         """Release both devices and worker ownership even if one close fails."""
+        with self._condition:
+            self._player = None
         try:
             if player:
                 player.close()

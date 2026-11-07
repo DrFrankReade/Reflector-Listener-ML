@@ -337,9 +337,11 @@ class ReflectorSession:
         return self.packet_logger.is_enabled
 
     def set_preferences(self, preferences: Preferences) -> None:
-        """Snapshot immutable TX options at the start of each transmission."""
+        """Apply receive preferences; TX options are snapshotted at transmission."""
         with self._lifecycle_lock:
             self.preferences = preferences
+            if configure_plc := getattr(self.decoder, "set_packet_loss_concealment", None):
+                configure_plc(preferences.packet_loss_concealment)
 
     def connect(self, config: ConnectionConfig) -> None:
         """Start the background thread and connect to the specified reflector.

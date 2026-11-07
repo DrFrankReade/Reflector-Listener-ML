@@ -84,6 +84,7 @@ class DecodeResult:
     # None represents a concealed frame. The normal PCM path is unchanged.
     ambe_frame: bytes | None = None
     gain: float = DEFAULT_GAIN
+    packet_loss_concealment: bool = True
 
 
 def default_dll_path() -> Path:
@@ -105,6 +106,7 @@ class AmbeDecoder:
         self._encoder = None
         self._closed = True
         self._gain = self._validated_gain(gain)
+        self._packet_loss_concealment = True
         if struct.calcsize("P") != 8:
             raise DecoderError("mbe-neo.dll requires 64-bit Python")
         self.path = Path(dll_path).resolve() if dll_path else default_dll_path()
@@ -205,6 +207,13 @@ class AmbeDecoder:
         with self._lock:
             self._gain = self._validated_gain(gain)
 
+    def set_packet_loss_concealment(self, enabled: bool) -> None:
+        """Select audible missing-frame repair; received-frame FEC stays enabled."""
+        if type(enabled) is not bool:
+            raise ValueError("Packet loss concealment must be on or off")
+        with self._lock:
+            self._packet_loss_concealment = enabled
+
     def _unpack(self, frame: bytes, order: BitOrder) -> _Frame:
         if len(frame) != FRAME_BYTES:
             raise ValueError(f"AMBE frame must be {FRAME_BYTES} bytes, got {len(frame)}")
@@ -245,7 +254,8 @@ class AmbeDecoder:
         self._dll.mbe_formatProcessResult(markers, len(markers), ctypes.byref(result))
         return DecodeResult(output, result.c0_errors, result.protected_errors, result.total_errors,
                             clipped, markers=markers.value.decode("ascii"),
-                            ambe_frame=ambe_frame, gain=self._gain)
+                            ambe_frame=ambe_frame, gain=self._gain,
+                            packet_loss_concealment=self._packet_loss_concealment)
 
     def decode_frame(self, frame: bytes, order: BitOrder) -> DecodeResult:
         with self._lock:
@@ -253,6 +263,8 @@ class AmbeDecoder:
             native_frame = self._unpack(frame, order)
             pcm, bits, result = _Pcm(), _Bits(), _ProcessResult()
             self._seed_synthesis()
+            # The full-frame entry point performs protected-channel FEC before
+            # parameter decoding and synthesis. Never bypass it for live/replay.
             self._check(self._dll.mbe_processAmbe3600x2400Frame(
                 pcm, ctypes.byref(result), native_frame, bits,
                 *(ctypes.byref(p) for p in self._decode_state)), "decode")
@@ -275,7 +287,7 @@ class AmbeDecoder:
             return bytes(packed)
 
     def conceal_frame(self) -> DecodeResult:
-        """Advance mbelib-neo's three-repeat/fourth-frame mute path on loss."""
+        """Advance the bounded repeat/mute policy, optionally silencing the gap."""
         with self._lock:
             self._require_open()
             pcm, bits = _Pcm(), _Bits()  # b0=0 is voice, never a tone/silence sentinel.
@@ -286,6 +298,8 @@ class AmbeDecoder:
             self._check(self._dll.mbe_processAmbe2400Data(
                 pcm, ctypes.byref(result), bits,
                 *(ctypes.byref(p) for p in self._decode_state)), "conceal")
+            if not self._packet_loss_concealment:
+                pcm = _Pcm()
             return self._result(pcm, result)
 
     def close(self) -> None:

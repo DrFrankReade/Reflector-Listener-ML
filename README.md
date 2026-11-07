@@ -8,6 +8,8 @@ Enable **Settings → Audio → ML Enhanced 48kHz Decoder**. It defaults off and
 
 Use your own licensed callsign. Settings and logs are stored locally beside the application; none are supplied in this repository.
 
+**Settings → Audio** selects a microphone and playback device, with automatic Windows-default fallback if absent. Microphone gain and a live meter help set levels. Device choices and gains are saved; Packet Loss Concealment defaults on and AMBE FEC remains enabled.
+
 ## Build
 
 Windows x64, Python 3.11:

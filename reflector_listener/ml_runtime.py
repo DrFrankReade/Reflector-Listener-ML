@@ -6,6 +6,7 @@ Nothing imports NumPy or PyTorch until Runtime is constructed. The ordinary
 from __future__ import annotations
 
 import ctypes as C
+from collections import deque
 import hashlib
 import json
 import os
@@ -91,6 +92,7 @@ class _Stream:
         self._closed = False
         self.last_errors = 0
         self.last_flags = 0
+        self._silent_frames = deque()
 
     def _require_worker(self):
         if self._closed:
@@ -125,6 +127,8 @@ class _Stream:
             if lib.mbe_decodeDStarDVData(packet, plane):
                 raise RuntimeError("ML decoder D-STAR channel mapping failed")
             result = Result()
+            # The full-frame API corrects protected AMBE channel bits before
+            # synthesis; the ML observations use that corrected decoder state.
             code = lib.mbe_processAmbe3600x2400Framef(pcm, C.byref(result), plane, bits,
                                                    *(C.byref(p) for p in self._native))
         if code < 0:
@@ -145,13 +149,26 @@ class _Stream:
                   "errors": np.asarray([self.last_errors], np.int32)}
         return inputs, state.reshape(1, 371)
 
-    def decode(self, frame: bytes | None):
-        """Advance one received/lost20ms frame; return zero or more float48k blocks."""
+    def decode(self, frame: bytes | None, *, packet_loss_concealment: bool = True):
+        """Advance one 20 ms frame, optionally silence its delayed missing audio."""
         self._require_worker()
+        if type(packet_loss_concealment) is not bool:
+            raise ValueError("Packet loss concealment must be on or off")
         if self._stream.finished:
             raise RuntimeError("ML decoder stream has already finished")
         inputs, state = self._observe(frame)
-        return self._stream.feed(inputs, state)
+        self._silent_frames.append(frame is None and not packet_loss_concealment)
+        return self._mask_output(self._stream.feed(inputs, state))
+
+    def _mask_output(self, outputs):
+        # The native predictor and neural context always advance through loss.
+        # Apply the choice on the output timeline, after future-context buffering,
+        # so an unchecked PLC setting produces exactly one silent missing slot.
+        for output in outputs:
+            for frame in output.reshape(-1, 960):
+                if self._silent_frames.popleft():
+                    frame.fill(0)
+        return outputs
 
     def reset_decoder_state(self):
         """Mirror native resynchronization without restarting the neural timeline."""
@@ -163,9 +180,10 @@ class _Stream:
     def finish(self):
         """Flush every final sample with unavailable-future padding exactly once."""
         self._require_worker()
-        return self._stream.finish()
+        return self._mask_output(self._stream.finish())
 
     def close(self):
         self._closed = True
         self._native = None
         self._stream = None
+        self._silent_frames.clear()

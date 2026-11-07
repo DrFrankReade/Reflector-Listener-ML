@@ -36,11 +36,15 @@ class ReceiveAudioPlayer:
                  max_device_frames: int | None = None, *,
                  config: BufferConfig | None = None,
                  on_warning: Callable[[str], None] | None = None,
+                 device_id: str = "",
+                 on_level: Callable[[float], None] | None = None,
                  player_factory: Callable = WaveOutPlayer,
                  runtime_factory: Callable | None = None) -> None:
         cfg = config or BufferConfig()
         self._on_error = on_error or (lambda message: None)
         self._on_warning = on_warning or (lambda message: None)
+        self._device_id = device_id
+        self._on_level = on_level or (lambda level: None)
         self._player_factory = player_factory
         self._runtime_factory = runtime_factory
         self._queue_limit = max(32, max_queued_frames or cfg.max_queued_frames)
@@ -79,6 +83,13 @@ class ReceiveAudioPlayer:
                     target=self._prewarm, name="ml-decoder-preload", daemon=True)
                 self._preload_thread.start()
 
+    def set_device(self, device_id: str) -> None:
+        """Route live or replay output without resetting decoder state."""
+        with self._condition:
+            self._device_id = device_id
+            if self._player is not None:
+                self._player.set_device(device_id)
+
     def start(self) -> None:
         with self._condition:
             if self._closed or (self._thread and self._thread.is_alive()):
@@ -95,6 +106,7 @@ class ReceiveAudioPlayer:
         self._finish_events.clear()
         if self._player is not None:
             self._player.cancel_stream()
+        self._on_level(0.0)
 
     def begin_stream(self) -> int:
         with self._condition:
@@ -204,7 +216,9 @@ class ReceiveAudioPlayer:
                 if not self._current(command):
                     return False
                 old_player.close()
+            device_id = self._device_id
             player = self._player_factory(sample_rate=rate, on_error=self._on_error,
+                                          device_id=device_id, on_level=self._on_level,
                                           max_queued_frames=max(64, self._queue_limit),
                                           max_device_frames=self._device_frames)
             with self._condition:
@@ -212,6 +226,8 @@ class ReceiveAudioPlayer:
                     player.close()
                     return False
                 self._player = player
+                if self._device_id != device_id:
+                    player.set_device(self._device_id)
                 self._player_generation = player.begin_stream()
         return True
 
@@ -319,7 +335,8 @@ class ReceiveAudioPlayer:
                     if stream is not None and command.kind == "frame":
                         pending.append(result)
                         try:
-                            self._write_outputs(stream.decode(result.ambe_frame), gain, pending, command)
+                            options = {} if getattr(result, "packet_loss_concealment", True) else {"packet_loss_concealment": False}
+                            self._write_outputs(stream.decode(result.ambe_frame, **options), gain, pending, command)
                         except Exception as exc:
                             stream = self._fallback(stream, pending, command, exc)
                     else:

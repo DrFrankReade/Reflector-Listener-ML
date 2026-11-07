@@ -11,6 +11,7 @@ from reflector_listener.rsms1 import CROP_OPTIONS, PICTURE_QUALITY_OPTIONS, PICT
 from .tooltip import ToolTip
 from .assets import get_add_photo_icon
 from .timeline import MessageTimeline
+from .vu_meter import VuMeter
 
 
 class LayoutMixin:
@@ -67,7 +68,7 @@ class LayoutMixin:
 
         self.status_banner = tk.Label(
             connection,
-            text="Status:  Not linked",
+            text="Not linked",
             font=("Segoe UI", 10, "bold"),
             foreground="#000000",
             background="#e0e0e0",
@@ -79,27 +80,16 @@ class LayoutMixin:
             width=24,
         )
         self.status_banner.grid(row=1, column=5, sticky="ew")
+        # Keep the full last-call summary readable at the minimum window width.
+        self.status_banner.bind("<Configure>", lambda event: self.status_banner.configure(
+            wraplength=max(80, event.width - 22)))
 
         controls_bar = ttk.Frame(outer, padding=(2, 8, 2, 8))
         controls_bar.grid(row=1, column=0, sticky="ew")
-        controls_bar.columnconfigure(0, weight=1)
-
-        self.rxtx_banner = tk.Label(
-            controls_bar,
-            text="Listening",
-            font=("Segoe UI", 10, "bold"),
-            foreground="#000000",
-            background="#e0e0e0",
-            relief="solid",
-            borderwidth=1,
-            anchor="w",
-            padx=10,
-            pady=4,
-        )
-        self.rxtx_banner.grid(row=0, column=0, sticky="ew", padx=(0, 12))
+        controls_bar.columnconfigure(3, weight=1)
 
         ttk.Label(controls_bar, text="Audio Gain").grid(
-            row=0, column=1, padx=(8, 5), sticky="e"
+            row=0, column=0, padx=(0, 5), sticky="w"
         )
         self.gain_scale = ttk.Scale(
             controls_bar,
@@ -109,22 +99,25 @@ class LayoutMixin:
             command=self._on_gain,
             length=150,
         )
-        self.gain_scale.grid(row=0, column=2, sticky="e")
+        self.gain_scale.grid(row=0, column=1, sticky="w")
         self.gain_label = ttk.Label(controls_bar, width=4, anchor="e")
-        self.gain_label.grid(row=0, column=3, padx=(5, 12), sticky="e")
+        self.gain_label.grid(row=0, column=2, padx=(5, 12), sticky="w")
+        self.output_meter = VuMeter(controls_bar)
+        self.output_meter.grid(row=0, column=3, sticky="ew", padx=(0, 12))
+        ToolTip(self.output_meter, "Live received or replay audio level. During PTT, shows your microphone level.")
 
         ptt_style = ttk.Style()
         ptt_style.configure(
             "BigPTT.TButton",
-            font=("Segoe UI", 10, "bold"),
-            padding=(10, 5),
+            font=("Segoe UI", 11, "bold"),
+            padding=(14, 9),
         )
         self.ptt_button = ttk.Button(
             controls_bar,
             text="Hold to Talk (PTT)",
             style="BigPTT.TButton",
             state="disabled",
-            width=26,
+            width=30,
         )
         self.ptt_button.grid(row=0, column=4, sticky="e")
         self.ptt_button.bind("<ButtonPress-1>", self._ptt_press)
@@ -459,132 +452,53 @@ class LayoutMixin:
                 btn.configure(relief="groove", background="#f5f5f5")
 
 
-    def _set_rxtx_listening(
-        self,
-        last_call: str | None = None,
-        mode: str | None = None,
-        details: str | None = None,
-        when: str | None = None,
-    ) -> None:
-        if not hasattr(self, "rxtx_banner"):
-            return
-        t_str = when or time.strftime("%H:%M:%S")
+    def _set_rxtx_listening(self, last_call: str | None = None, mode: str | None = None,
+                            details: str | None = None, when: str | None = None) -> None:
         if last_call:
-            norm_call = last_call.strip().upper()
-            if mode == "voice":
-                summary = f"Listening - last call {norm_call} - Voice {details or 0} frames at {t_str}"
-            elif mode == "text":
-                summary = f"Listening - last call {norm_call} - Text at {t_str}"
-            elif mode == "picture":
-                summary = f"Listening - last call {norm_call} - Picture {details} tiles at {t_str}"
-            else:
-                summary = f"Listening - last call {norm_call} at {t_str}"
-            self._last_call_summary = summary
-            self.rxtx_banner.configure(
-                text=summary,
-                background="#e0e0e0",
-                foreground="#000000",
-            )
-        elif self._last_call_summary:
-            self.rxtx_banner.configure(
-                text=self._last_call_summary,
-                background="#e0e0e0",
-                foreground="#000000",
-            )
-        else:
-            self.rxtx_banner.configure(
-                text="Listening",
-                background="#e0e0e0",
-                foreground="#000000",
-            )
+            self._last_call_summary = f"Last Call {last_call.strip().upper()} {when or time.strftime('%H:%M:%S')}"
+        self._status_activity = "Listening"
+        self._render_status()
 
+    def _set_rxtx_receiving(self, callsign: str, mode: str, details: str | int = "") -> None:
+        self._status_activity = f"Receiving {(callsign or 'Unknown').strip().upper()}"
+        self._render_status()
 
-    def _set_rxtx_receiving(
-        self,
-        callsign: str,
-        mode: str,
-        details: str | int = "",
-    ) -> None:
-        if not hasattr(self, "rxtx_banner"):
-            return
-        norm_call = (callsign or "Unknown").strip().upper()
-        if mode == "voice":
-            text = f"Receiving - {norm_call} - Voice {details} frames"
-        elif mode == "text":
-            text = f"Receiving - {norm_call} - Text"
-        elif mode == "picture":
-            text = f"Receiving - {norm_call} - Picture {details} tiles"
-        else:
-            text = f"Receiving - {norm_call}"
-        self.rxtx_banner.configure(
-            text=text,
-            background="#c8e6c9",
-            foreground="#000000",
-        )
-
-
-    def _set_rxtx_transmitting(
-        self,
-        callsign: str,
-        mode: str,
-        details: str | int = "",
-    ) -> None:
-        if not hasattr(self, "rxtx_banner"):
-            return
-        norm_call = (callsign or "MYCALL").strip().upper()
-        if mode == "voice":
-            text = f"Transmitting {norm_call} - Voice {details} frames."
-        elif mode == "text":
-            text = f"Transmitting {norm_call} - Text"
-        elif mode == "picture":
-            text = f"Transmitting {norm_call} - Picture {details} tiles"
-        else:
-            text = f"Transmitting {norm_call}"
-        self.rxtx_banner.configure(
-            text=text,
-            background="#ffcdd2",
-            foreground="#000000",
-        )
-
+    def _set_rxtx_transmitting(self, callsign: str, mode: str, details: str | int = "") -> None:
+        self._status_activity = f"Transmitting {(callsign or 'MYCALL').strip().upper()}"
+        self._render_status()
 
     def _update_status_banner(self, state: ConnectionState, message: str = "") -> None:
+        self._status_connection_state = state
+        self._status_message = message
+        if state is not ConnectionState.LINKED:
+            self._status_activity = "Listening"
+        self._render_status()
+
+    def _render_status(self) -> None:
         if not hasattr(self, "status_banner"):
             return
+        state = getattr(self, "_status_connection_state", ConnectionState.DISCONNECTED)
         ref = self.reflector_var.get().strip().upper()
         mod = self.module_var.get().strip().upper()
+        background = "#e0e0e0"
         if state is ConnectionState.LINKED:
-            self.status_banner.configure(
-                text=f"Status:  Linked to {ref}{mod}",
-                background="#c8e6c9",
-                foreground="#000000",
-            )
+            text = f"Linked {ref}{mod} - {getattr(self, '_status_activity', 'Listening')}"
+            if getattr(self, "_last_call_summary", None):
+                text += f" - {self._last_call_summary}"
+            background = "#c8e6c9"
         elif state is ConnectionState.CONNECTING:
-            self.status_banner.configure(
-                text=f"Status:  Connecting to {ref}{mod}...",
-                background="#e0e0e0",
-                foreground="#000000",
-            )
-        elif state in {ConnectionState.DISCONNECTED, ConnectionState.STOPPING}:
-            self.status_banner.configure(
-                text="Status:  Not linked",
-                background="#e0e0e0",
-                foreground="#000000",
-            )
+            text = f"Connecting {ref}{mod}..."
+        elif state in (ConnectionState.DISCONNECTED, ConnectionState.STOPPING):
+            text = "Not linked"
+        elif state is ConnectionState.ERROR:
+            text = f"Error: {getattr(self, '_status_message', '') or state.value}"
+            background = "#ffcdd2"
         else:
-            self.status_banner.configure(
-                text=f"Status:  {message or state.value}",
-                background="#e0e0e0",
-                foreground="#000000",
-            )
-
+            text = getattr(self, "_status_message", "") or state.value
+        self.status_banner.configure(text=text, background=background, foreground="#000000")
 
     def _set_status_error(self, message: str) -> None:
-        if hasattr(self, "status_banner"):
-            self.status_banner.configure(
-                text=f"Status:  Error: {message}",
-                background="#ffcdd2",
-                foreground="#000000",
-            )
+        self._update_status_banner(ConnectionState.ERROR, message)
 
 
     def _set_controls_for_state(self, state: ConnectionState) -> None:

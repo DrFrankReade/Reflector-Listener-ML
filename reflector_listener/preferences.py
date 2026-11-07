@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, fields, replace
 import re
+import math
 from typing import Any, Mapping
 
 from .location import coordinates, grid_center
@@ -24,6 +25,10 @@ class Preferences:
     picture_beep: bool = True
     stream_logging: bool = False
     ml_enhanced_decoder: bool = False
+    transmit_device: str = ""
+    receive_device: str = ""
+    transmit_gain: float = 1.0
+    packet_loss_concealment: bool = True
     incoming_avatars: bool = False
     own_avatar_animal: str = DEFAULT_AVATAR.animal
     own_avatar_color: str = DEFAULT_AVATAR.color
@@ -62,9 +67,16 @@ class Preferences:
             value = getattr(self, key)
             if type(value) is not int or not 1 <= value <= 100000:
                 raise ValueError("Log size must be a whole number from 1 to 100000 MB.")
-        for key in ("send_dprs", "picture_beep", "stream_logging", "incoming_avatars", "ml_enhanced_decoder"):
+        for key in ("send_dprs", "picture_beep", "stream_logging", "incoming_avatars", "ml_enhanced_decoder", "packet_loss_concealment"):
             if type(getattr(self, key)) is not bool:
                 raise ValueError(f"{key} must be on or off.")
+        for key in ("transmit_device", "receive_device"):
+            value = getattr(self, key)
+            if not isinstance(value, str) or len(value) > 4096 or "\x00" in value:
+                raise ValueError("Choose a valid audio device.")
+        if (type(self.transmit_gain) not in (int, float) or not math.isfinite(self.transmit_gain)
+                or not 0 <= self.transmit_gain <= 6):
+            raise ValueError("Microphone gain must be between 0 and 6.")
 
     def _normalize_location(self) -> None:
         """Validate location inputs before permitting D-PRS transmission."""
