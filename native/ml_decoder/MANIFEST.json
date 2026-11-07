@@ -1,0 +1,35 @@
+{
+  "model": "Pilot5C",
+  "training_step": 15900,
+  "source_checkpoint_sha256": "4e89dd533829670fcfbec9e4d4494fbcc960ba5810c5af11e3946f5d28161a1e",
+  "checkpoint_selection": "models.candidate only; no optimizer, control arm or training state",
+  "decoder_version": "2.6.5",
+  "decoder_commit": "77a9a33b93eff910bc2bcade18c1e76fce1b7105",
+  "past_frames": 36,
+  "future_frames": 18,
+  "block_frames": 8,
+  "sample_rate": 48000,
+  "reference_runtime": {
+    "torch": "2.7.1+cpu",
+    "numpy": "2.4.6",
+    "cpu_threads": 4
+  },
+  "files": {
+    "candidate.pt": {
+      "bytes": 3249315,
+      "sha256": "0e184e6bc74986d648e231c23547c88b17d8378bb42f18125ba022a09339fbad"
+    },
+    "normalization.json": {
+      "bytes": 3706,
+      "sha256": "2c0109297f1d888994c2540928593254f21f95cdbfbeb322812f743423a745d1"
+    },
+    "state_normalization.json": {
+      "bytes": 12464,
+      "sha256": "6e58af5272fa8a958ff0ac3c44f5451bdbed232978c342c6c89f84268691cac3"
+    },
+    "stock265.dll": {
+      "bytes": 481280,
+      "sha256": "698cb4ef2ef78ec0528e5ebddee3b5ba6ef964ba7f847ec99bfeb0459bcf11ea"
+    }
+  }
+}

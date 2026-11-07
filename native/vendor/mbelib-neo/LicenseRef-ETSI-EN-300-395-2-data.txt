@@ -1,0 +1,21 @@
+LicenseRef-ETSI-EN-300-395-2-data
+
+Scope: src/tetra/tetra_acelp_codebooks.c
+Copyright (C) European Telecommunications Standards Institute (ETSI).
+
+Numeric LSP and gain codebooks extracted from C-CODE/CLSP_334.TAB and
+C-CODE/ENER_QUA.TAB in the archive attached to ETSI EN 300 395-2. Versions
+V1.3.1 (2005-01) and V1.3.3 (2025-02) contain identical tables. The extractor
+copies numeric data, not ETSI program code.
+
+This identifier preserves attribution and records an unresolved permission
+question. It is not a license grant. The project's GPL grant does not cover
+these tables. Redistribution permission and GPL compatibility have not been
+established. They are retained under the disclosed ETSI-RETAIN-1 exception.
+
+The project reviewed the December 2022 ETSI IPR Policy on 2026-10-17:
+https://www.etsi.org/images/files/IPR/etsi-ipr-policy.pdf
+Historical applicability, contributor rights and any alternative terms remain
+unresolved. See legal/status.md for the assessment and open evidence needs.
+Decoder conformance and comparable implementations elsewhere do not establish
+copyright permission. Copyright and patent questions are separate.

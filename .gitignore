@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+build/
+dist/
+settings.json*
+avatars.json*
+logs/
+*.log

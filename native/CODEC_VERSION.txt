@@ -1,0 +1,14 @@
+mbelib-neo 2.6.2 (latest stable release checked 2026-10-23)
+Release: https://github.com/arancormonk/mbelib-neo/releases/tag/v2.6.2
+Official portable Windows x64 shared library; D-STAR AMBE 3600x2400.
+PCM16 mono, 8 kHz, 160 samples / 9-byte LSB-first frame, encode and decode.
+Python binding: exact v2.6.2 public ABI; mbe_parms 2604 bytes, process_result 20 bytes.
+Native PCM16 conversion, default receive/replay gain 1.0; no legacy compensation.
+Gain profile: mbelib-neo-pcm16-v1. Legacy nonzero gain resets once; mute is preserved.
+DLL: native/bin/mbe-neo.dll
+DLL SHA-256: 9f5f16dba4dc72655b383b82ab99b9a686332aaebf9c92186d13ca5c1343ffa3
+Release ZIP: mbelib-neo-2.6.2-windows-x64.zip
+ZIP SHA-256: 5dcb06c646019cc27f0c3da292b0a976e1076429851efc8f04662621a496bd4d
+Source: native/vendor/mbelib-neo-2.6.2-source.tar.gz
+Source SHA-256: 1bfb475057ea4adc66e4ec31cd98795ba616622fad48750b14c3b97be573e1ed
+Headers and upstream notices: native/vendor/mbelib-neo/

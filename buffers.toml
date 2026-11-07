@@ -1,0 +1,67 @@
+# ==============================================================================
+# reflectorListen Buffer & Playout Configuration
+# ==============================================================================
+# This configuration tunes packet jitter buffering, packet loss concealment (PLC),
+# and audio device hardware queues.
+#
+# These settings have been tuned for typical VoIP conditions: lossy Wi-Fi links,
+# consumer ISP routing jitter, and Windows scheduler latency. You can adjust
+# these values to optimize between audio latency and dropout resilience.
+# Changes take effect on next application launch or reconnection.
+# ==============================================================================
+
+[jitter_buffer]
+# Startup delay before initial audio playback begins (seconds).
+# Pre-buffers audio frames at the start of a transmission to absorb Wi-Fi jitter.
+# Lower values reduce push-to-talk turnaround delay; higher values prevent initial stutter.
+# Default: 0.240 (240 ms / 12 frames at 50 fps)
+startup_delay_seconds = 0.240
+
+# Re-buffering delay after an audio underrun or gap before resuming playback (seconds).
+# If packet loss or network jitter starves the buffer, playout parks and waits for
+# this much headroom to accumulate before resuming speech.
+# Default: 0.160 (160 ms / 8 frames)
+resume_delay_seconds = 0.160
+
+# Maximum capacity of the jitter reorder buffer (in 20 ms frames).
+# Wi-Fi often delivers packets in bursts after small contention stalls. If frames
+# accumulate beyond this ceiling, the oldest stale frames are dropped to keep
+# playback near real time without unbounded latency growth.
+# Default: 75 (1.5 seconds); accommodates the 61-frame bursts in reflector captures.
+# This is a capacity limit, not an added startup delay.
+max_buffered_frames = 75
+
+# Maximum consecutive synthetic concealment frames to decode during packet loss.
+# When a 20 ms packet is missing at its playout deadline, the native AMBE vocoder
+# synthesizes speech using Packet Loss Concealment (PLC). Playout only parks if
+# packet loss exceeds this limit, cleanly bridging brief Wi-Fi dropouts.
+# Default: 5 (100 ms / 5 frames)
+max_concealment_frames = 5
+
+# Tolerance in 20 ms slots for mapping modulo-21 wire sequence numbers to monotonic frames.
+# Disambiguates small sequence wraps after network stalls.
+# Default: 8 (160 ms)
+sequence_tolerance_frames = 8
+
+# Maximum catch-up frames serviced per 20 ms playout cycle.
+# Prevents playout bursts after brief thread stalls while allowing the buffer to catch up.
+# Default: 6 (120 ms)
+max_playout_catchup_frames = 6
+
+# Inactivity timeout before an un-terminated voice stream is automatically closed (seconds).
+# If a transmission stops without an explicit D-Star END packet, the stream finishes
+# after this timeout.
+# Default: 4.5
+voice_timeout_seconds = 4.5
+
+[audio_output]
+# Internal queue capacity between the network/decoder thread and the audio player (20 ms frames).
+# Buffers decoded PCM before submission to the sound card.
+# Default: 100 (2.0 seconds)
+max_queued_frames = 100
+
+# Windows waveOut multimedia hardware ring buffer size (in 20 ms frames).
+# Number of pre-queued WAVEHDR buffers submitted directly to the sound card driver
+# to prevent audio crackle and DAC starvation during Windows CPU spikes.
+# Default: 16 (320 ms)
+max_device_frames = 16

@@ -1,0 +1,10 @@
+Kenney Animal Pack 1.0 — round animal portraits
+Author: Kenney Vleugels / Kenney
+License: CC0 1.0 Universal (public domain dedication)
+https://kenney.nl/assets/animal-pack
+https://creativecommons.org/publicdomain/zero/1.0/
+Download: https://kenney.nl/media/pages/assets/animal-pack/480cf9f223-1677669996/kenney_animal-pack.zip
+Archive SHA-256: 0bc2c14992bc5156dcb0af06d61553c68a0fc3ec6ff6aa9781f9ed1b7120b8a9
+Source files: PNG/Round/{animal}.png
+Bundled PNGs reduced proportionally to at most 256x256 pixels.
+Artwork otherwise unchanged. No runtime downloads.

@@ -1,0 +1,3 @@
+# Image resizing, JPEG tile encoding/decoding, and Tk inline image display.
+Pillow>=10.0
+# Optional ML receive/replay runtime: install requirements-ml.txt separately.

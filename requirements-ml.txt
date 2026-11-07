@@ -1,0 +1,6 @@
+# CPU-only inference dependencies for the experimental Pilot5C decoder.
+# No training, dataset, CUDA, or evaluation packages are required.
+--extra-index-url https://download.pytorch.org/whl/cpu
+-r requirements.txt
+numpy==2.4.6
+torch==2.7.1+cpu
