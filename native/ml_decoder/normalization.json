@@ -1,4 +1,11 @@
 {
+  "complete": true,
+  "count": 6055950,
+  "feature_columns": [
+    0,
+    74
+  ],
+  "manifest_digest": "55e5a29154350291337442285ea286d06adb88e8c74716d4a875e20631dd6166",
   "mean": [
     -13.112052578645944,
     -5.928922335906815,
@@ -75,6 +82,12 @@
     -0.008315150910188772,
     0.28466990173273926
   ],
+  "quiet_frames_retained": true,
+  "recipe_digest": "6759e1f931d72b3f31930e3dd170db940abf9d3476ab2f3cf5a892f59b790836",
+  "records": 36117,
+  "schema_version": 1,
+  "source_audio_loaded": false,
+  "split": "train",
   "std": [
     13.140850092836198,
     9.543956043634179,
@@ -150,5 +163,6 @@
     0.4111472228492194,
     0.24679752744131092,
     0.16476023846100535
-  ]
+  ],
+  "total_records": 36117
 }

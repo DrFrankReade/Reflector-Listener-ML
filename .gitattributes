@@ -1,0 +1,3 @@
+# Qualified runtime source and model assets are verified byte-for-byte.
+reflector_listener/_ml/*.py -text
+native/ml_decoder/* -text

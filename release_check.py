@@ -19,6 +19,7 @@ def run(destination):
     assert len(codec.decode_frame(NULL_AMBE_FRAME,BitOrder.LSB_FIRST).pcm)==320
     codec.close()
     runtime=Runtime()
+    assert runtime.bundle.manifest['model_id'] == 'v2-full360-step473130'
     stream=runtime.new_stream()
     parts=[]
     for _ in range(29):parts.extend(stream.decode(NULL_AMBE_FRAME))
@@ -34,4 +35,4 @@ def run(destination):
     assert player.wait_drained(5)
     player.close()
     assert not errors,errors
-    Path(destination).write_text(json.dumps({'passed':True,'torch':torch.__version__,'cuda':torch.version.cuda,'samples48':29*960,'tk':True,'waveout48':True,'device_fallback':True,'devices':{direction:len(items) for direction,items in devices.items()}}),encoding='utf-8')
+    Path(destination).write_text(json.dumps({'passed':True,'model':runtime.bundle.manifest['model_id'],'torch':torch.__version__,'cuda':torch.version.cuda,'samples48':29*960,'tk':True,'waveout48':True,'device_fallback':True,'devices':{direction:len(items) for direction,items in devices.items()}}),encoding='utf-8')

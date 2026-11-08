@@ -1,23 +1,33 @@
-Experimental ML Enhanced 48kHz Decoder runtime
+Experimental ML Enhanced 48kHz Decoder runtime — full360-v1
 
-Frozen Pilot5C candidate, step 15900, selected from the ML Enhanced 48kHz
-Decoder work in the decoder research project. The selected setting is
-360 ms future context, 720 ms past context and 160 ms output blocks: nominal
-buffering of 520 ms plus native/model processing, network and output-device queues.
+Accepted Pilot5C full360 model, step 473130. The inference-only weights and
+qualified Python API come from the decoder research project's full360-v1
+export. Context remains 720 ms past, 360 ms future and 160 ms output blocks:
+nominal buffering is 520 ms plus processing, network and device queues.
 
-candidate.pt contains only the candidate's tensor state dictionary. Optimizers,
-comparison models, training data, references, captures, evaluations and training
-code are not included. The two normalization files contain only inference
-statistics/schema fields. Inference-only Python lives in reflector_listener/_ml.
-CPU PyTorch and NumPy are required; no GPU, training server or source checkout
-is used at runtime. This is a best-effort test model, not a quality-qualified
-production replacement. Its source record explicitly says quality_pass=false.
+weights.pt contains only the accepted model tensor dictionary. No optimizers,
+training checkpoints, corpus, references, captures or evaluations are bundled.
+CPU PyTorch and NumPy are required. No GPU or research checkout is needed.
+This remains an experimental best-effort decoder; training completion does
+not establish audible improvement or production quality.
 
-stock265.dll is the separately pinned mbelib-neo 2.6.5 decoder used by the model.
-It does not replace native/bin/mbe-neo.dll or alter the ordinary 8 kHz path.
+reflector_listener/_ml is the unmodified hash-qualified inference package.
+All its Python sources are retained because ModelBundle verifies its exact
+source inventory; the standalone WAV CLI is not used by this application.
+No soundfile dependency is needed for streaming playback. ml_runtime.py adapts
+ModelBundle/StockDecoder to the audio worker. ml_transport.py adds explicit
+network erasures and resynchronization without editing the qualified package.
+Native workers are exclusively leased and reused across talkspurts to isolate
+native RNG state and bound thread-local FFT caches. PLC muting is applied on
+the delayed output timeline. The existing playback gain/PCM16 saturation remains.
+
+MANIFEST.json pins the checkpoint, runtime source, weights and normalization.
+SOURCE_PROVENANCE.json records the evaluated architecture's source hashes.
+Preserve these files byte-for-byte; line-ending conversion invalidates hashes.
+
+stock265.dll remains the pinned mbelib-neo 2.6.5 decoder used by this model.
+It does not replace native/bin/mbe-neo.dll or change ordinary 8 kHz reception
+or microphone encoding. Correctable received channel errors still use FEC.
 Upstream: https://github.com/arancormonk/mbelib-neo
-Source tag v2.6.5; commit 77a9a33b93eff910bc2bcade18c1e76fce1b7105.
-Source: https://github.com/arancormonk/mbelib-neo/tree/77a9a33b93eff910bc2bcade18c1e76fce1b7105
-License: GPL-2.0-or-later; see LICENSE.txt. The Python decoder binding and
-observation extraction retain the same SPDX notice as their source binding.
-MANIFEST.json records source checkpoint provenance and runtime asset hashes.
+Source commit: 77a9a33b93eff910bc2bcade18c1e76fce1b7105 (v2.6.5).
+License: GPL-2.0-or-later; see LICENSE.txt and native/vendor codec sources.

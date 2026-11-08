@@ -1,0 +1,30 @@
+{
+  "changes": [
+    "Inference definitions only; relative imports redirected inside runtime package.",
+    "Streaming diagnostics bounded to256 blocks; numerical processing unchanged.",
+    "Runtime default future context18 frames."
+  ],
+  "kind": "inference-source-snapshot-v1",
+  "outputs": {
+    "_context.py": "ffc9bb9726dbc9673afa65a4aee5c8bef741c1dd800ed76feb4ead5509bc6438",
+    "_filters.py": "aaeca943abee095bf115e8773c8fda270e01a8ffa8dd9b6a9075c7af9df4bb27",
+    "_model_v2.py": "4f80f1271d85b970de388fad7b6037d1f63a4df76ce87ae0ba636f9c0991b233",
+    "_model_v3.py": "efde0ee83a89cb22c8f36f5628783e23e63f2ab2a3fad67f019637a8f8d4ae03",
+    "_model_v4.py": "b38d1112915dedcc69ead4116a6419636109cd2aa74aac4f04ed40f45077a525",
+    "_model_v5.py": "55c127f4536d78aefd46ac581b18022b3dc7fe51adffc1c1cc926e6e4740d899",
+    "_model_v5c.py": "a2a2d050e9a1b4e2e677e7b8066171cbf56edbdb99f75986c6303e34738259ea",
+    "_native_abi.py": "b0ed91a45aed66bfc8a653a5b6fa39e48636223dfca8588db61b9a793d13131b",
+    "observations.py": "fff305671ba1a15dd6cd76cc4325aa7a11902c033cf26fcf89006360edc6052b"
+  },
+  "sources": {
+    "decoder.py": "8ad513a10b1ac201e3aec070738ba71f52bd684a2834bcb5013618d394a778b2",
+    "decoder_state_v4.py": "6a94f948fb41890ea7957d2289c11477a9a70600918b5c50d0dff5d0a2bfd2f9",
+    "future_context_v5.py": "b1ecb7474131f522224a2e38b8a6a34238281f823186bc55704bd9a367d08899",
+    "restoration_v2_model.py": "b639bb1cdde6a77679d135b354bae4e7b8026fef765c9287c5fd951084da2ba4",
+    "restoration_v2_runtime.py": "17a3be73160e74a75209b4b94a78478c4c1b1d775f9173b12181a0670fea9dcd",
+    "restoration_v2p3_model.py": "7ca74f7456f6822d8dc0af4450da9b02bb325f414979620210b33623ce64ef0e",
+    "restoration_v2p4_model.py": "da271d060b61e1a19dd03e1597c43fa1eef9e82d7c1c2f25d67ae063c0ff440b",
+    "restoration_v2p5_model.py": "073399646188fb78bca790336ec070189fa557c70655d8e758f914bc79d3f074",
+    "restoration_v2p5c_model.py": "774c948cd37a3fe7fc50b762ac42412bd339c161cc062ea488592fe1c98ab1d4"
+  }
+}

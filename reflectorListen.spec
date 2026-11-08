@@ -6,13 +6,16 @@ ml_runtime = Path(SPECPATH) / 'native' / 'ml_decoder'
 ml_binaries = [(str(path), 'native/ml_decoder') for path in ml_runtime.glob('*.dll')]
 ml_data = [(str(path), 'native/ml_decoder') for path in ml_runtime.iterdir()
            if path.is_file() and path.suffix.lower() != '.dll']
+# The qualified model verifies the exact runtime source inventory at startup.
+ml_sources = [(str(path), 'reflector_listener/_ml')
+              for path in (Path(SPECPATH) / 'reflector_listener' / '_ml').glob('*.py')]
 
 a = Analysis(
     ['app.py'],
     pathex=[],
     binaries=[('native/bin/mbe-neo.dll', 'native/bin'), *ml_binaries],
     datas=[('assets', 'assets'), ('DStar_Hosts.json', '.'), ('buffers.toml', '.'),
-           ('native/CODEC_VERSION.txt', 'native'), ('native/vendor', 'native/vendor'), *ml_data],
+           ('native/CODEC_VERSION.txt', 'native'), ('native/vendor', 'native/vendor'), *ml_data, *ml_sources],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

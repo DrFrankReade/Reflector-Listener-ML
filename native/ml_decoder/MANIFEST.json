@@ -1,35 +1,121 @@
 {
-  "model": "Pilot5C",
-  "training_step": 15900,
-  "source_checkpoint_sha256": "4e89dd533829670fcfbec9e4d4494fbcc960ba5810c5af11e3946f5d28161a1e",
-  "checkpoint_selection": "models.candidate only; no optimizer, control arm or training state",
-  "decoder_version": "2.6.5",
-  "decoder_commit": "77a9a33b93eff910bc2bcade18c1e76fce1b7105",
-  "past_frames": 36,
-  "future_frames": 18,
+  "architecture": "SpeechReconstructorV2P5C",
   "block_frames": 8,
-  "sample_rate": 48000,
-  "reference_runtime": {
-    "torch": "2.7.1+cpu",
-    "numpy": "2.4.6",
-    "cpu_threads": 4
+  "enhancement_opt_in": true,
+  "export_torch": "2.7.1+cpu",
+  "format": "ambe-ml-inference-v1",
+  "future_frames": 18,
+  "input_rate": 8000,
+  "model_id": "v2-full360-step473130",
+  "nominal_buffering_ms": 520,
+  "normalization": {
+    "bytes": 3964,
+    "path": "normalization.json",
+    "sha256": "582554c98f16a6f07ea82a26d976ada42cd60ae6101247eb72a8169d10c0d4bb"
   },
-  "files": {
-    "candidate.pt": {
-      "bytes": 3249315,
-      "sha256": "0e184e6bc74986d648e231c23547c88b17d8378bb42f18125ba022a09339fbad"
+  "optimizer_included": false,
+  "output_policy": "Raw normalized float48; no added AGC, limiter, DC filter or loudness matching.",
+  "output_rate": 48000,
+  "parameters": 798159,
+  "past_frames": 36,
+  "pcm_scale": 0.000213623046875,
+  "references_required": false,
+  "runtime_code": [
+    {
+      "bytes": 576,
+      "path": "__init__.py",
+      "sha256": "efae4d46d783f625970b87dc39af1f9ce986e4d03d821d84b8d2be0d80a1cc37"
     },
-    "normalization.json": {
-      "bytes": 3706,
-      "sha256": "2c0109297f1d888994c2540928593254f21f95cdbfbeb322812f743423a745d1"
+    {
+      "bytes": 7462,
+      "path": "__main__.py",
+      "sha256": "1454ea567434aaad3f384af649c3739070fbc87dfeb826783929a8c0d8fce026"
     },
-    "state_normalization.json": {
-      "bytes": 12464,
-      "sha256": "6e58af5272fa8a958ff0ac3c44f5451bdbed232978c342c6c89f84268691cac3"
+    {
+      "bytes": 9551,
+      "path": "_context.py",
+      "sha256": "ffc9bb9726dbc9673afa65a4aee5c8bef741c1dd800ed76feb4ead5509bc6438"
     },
-    "stock265.dll": {
-      "bytes": 481280,
-      "sha256": "698cb4ef2ef78ec0528e5ebddee3b5ba6ef964ba7f847ec99bfeb0459bcf11ea"
+    {
+      "bytes": 420,
+      "path": "_filters.py",
+      "sha256": "aaeca943abee095bf115e8773c8fda270e01a8ffa8dd9b6a9075c7af9df4bb27"
+    },
+    {
+      "bytes": 6064,
+      "path": "_model_v2.py",
+      "sha256": "4f80f1271d85b970de388fad7b6037d1f63a4df76ce87ae0ba636f9c0991b233"
+    },
+    {
+      "bytes": 9680,
+      "path": "_model_v3.py",
+      "sha256": "efde0ee83a89cb22c8f36f5628783e23e63f2ab2a3fad67f019637a8f8d4ae03"
+    },
+    {
+      "bytes": 8692,
+      "path": "_model_v4.py",
+      "sha256": "b38d1112915dedcc69ead4116a6419636109cd2aa74aac4f04ed40f45077a525"
+    },
+    {
+      "bytes": 8598,
+      "path": "_model_v5.py",
+      "sha256": "55c127f4536d78aefd46ac581b18022b3dc7fe51adffc1c1cc926e6e4740d899"
+    },
+    {
+      "bytes": 2185,
+      "path": "_model_v5c.py",
+      "sha256": "a2a2d050e9a1b4e2e677e7b8066171cbf56edbdb99f75986c6303e34738259ea"
+    },
+    {
+      "bytes": 1680,
+      "path": "_native_abi.py",
+      "sha256": "b0ed91a45aed66bfc8a653a5b6fa39e48636223dfca8588db61b9a793d13131b"
+    },
+    {
+      "bytes": 1531,
+      "path": "artifacts.py",
+      "sha256": "b2f7130b586aeb4e1c66992341e18ad649837903b9f413b42688a0d63206fd22"
+    },
+    {
+      "bytes": 6252,
+      "path": "decoder.py",
+      "sha256": "22a40e34086f35ab30055a98e342d693063ed48927ba9e51f9aebe711ea5a679"
+    },
+    {
+      "bytes": 4114,
+      "path": "model.py",
+      "sha256": "b47300f4ff61014f2f3c42bf6e759eb7ae4395178ee09da94e6e76ab492d315e"
+    },
+    {
+      "bytes": 5645,
+      "path": "native.py",
+      "sha256": "a33122eb637c19dc8bd42cb681b00cb3015b1f9ea3de29d04c71935f8f58991b"
+    },
+    {
+      "bytes": 8788,
+      "path": "observations.py",
+      "sha256": "fff305671ba1a15dd6cd76cc4325aa7a11902c033cf26fcf89006360edc6052b"
     }
+  ],
+  "source_checkpoint_sha256": "7ebb87ad5465d102c104dedce3968131b5ebdbefc046f952928d92b56b42d768",
+  "source_provenance": {
+    "bytes": 1998,
+    "path": "SOURCE_PROVENANCE.json",
+    "sha256": "8c6f996eebab667397a828c8dc68a820e2357515a033ce826a29eaaaf1b03beb"
+  },
+  "state_normalization": {
+    "bytes": 16153,
+    "path": "state_normalization.json",
+    "sha256": "4bd9bcffabbe10af330fbb64a120ebced8bcc24d505bfa37b580f5c9d944b488"
+  },
+  "stock_decoder_sha256": "698cb4ef2ef78ec0528e5ebddee3b5ba6ef964ba7f847ec99bfeb0459bcf11ea",
+  "stock_version": "2.6.5",
+  "training_recipe_identity": "873251d1aef6dd038c3382a44e80ca08ce3bbef190b1c7621e135ac80fc318c0",
+  "training_torch": "2.7.1+cu126",
+  "updates": 473130,
+  "weights": {
+    "bytes": 3247477,
+    "path": "weights.pt",
+    "sha256": "cea2f1f7fe08ba415bdfbc965677e30f1d82fcf7343e0203ee4ed2286bd9b726"
   }
 }
