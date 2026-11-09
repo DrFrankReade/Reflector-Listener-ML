@@ -2,6 +2,10 @@
 
 Windows D-STAR reflector voice, text and picture client. Download the EXE from Releases; Python and a GPU are not required.
 
+**Get started fast**
+
+Click on "Releases" download the latest giant executable. Only for Windows PC for now.  Download the dstar hosts json file from pistar's download page and put it in the same folder as the EXE. Thanks to the PiStar folks, please don't get mad at me. 
+
 **The optional ML decoder remains experimental; its enhancement only helps the upper bands.** It now uses the accepted 473,130-step model; expect artifacts and uneven quality, not a finished voice model.
 
 **Settings → Audio → ML Enhanced 48kHz Decoder** defaults on and applies to the next reception or replay. Full360 step 473,130 uses 360 ms future context (about 520 ms buffering plus processing). The standard decoder remains available, with automatic fallback on ML failure.
