@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
+from pathlib import Path
+import tempfile
 import threading
 import time
 from typing import Callable
+import wave
 
-from .receive_audio import ReceiveAudioPlayer
+from .receive_audio import ReceiveAudioPlayer, enhanced_pcm16
 from .decoder import AmbeDecoder, BitOrder, DEFAULT_GAIN
 from .protocols import parse_media_packet
 from .stream_log import BinaryStreamLog, Recording, RecordingGroup, RecordRef, voice_index
@@ -265,6 +269,59 @@ class ReplayController:
         if packet is None or packet.ambe is None:
             raise ValueError("Invalid archived voice frame")
         return decoder.decode_frame(packet.ambe, BitOrder.LSB_FIRST)
+
+    def save_wav(self, clip: Recording | RecordingGroup, destination: str | Path) -> None:
+        """Render an entire recording on a caller's worker, independent of playback."""
+        if not clip.complete:
+            raise ValueError("Wait until the recording completes before saving it.")
+        self._check_recording_available(clip)
+        with self._condition:
+            gain, plc, enhanced = self._gain, self._packet_loss_concealment, self._ml_enabled
+        index = voice_index(self.archive, clip, lambda: self._closed)
+        length = max(index, default=-1) + 1
+        if not length:
+            raise ValueError("No recorded voice frames are available.")
+
+        destination = Path(destination)
+        fd, name = tempfile.mkstemp(dir=destination.parent, prefix=".recording-", suffix=".wav.tmp")
+        os.close(fd)
+        temporary = Path(name)
+        decoder = stream = None
+        try:
+            decoder = self._decoder_factory(gain=gain)
+            decoder.begin_stream(1)
+            decoder.set_packet_loss_concealment(plc)
+            if enhanced:
+                try:
+                    from .ml_runtime import Runtime
+                    stream = Runtime().new_stream()
+                except Exception as exc:
+                    self._on_warning(f"WAV export used standard 8 kHz decoding because ML was unavailable: {exc}")
+            with wave.open(str(temporary), "wb") as output:
+                output.setparams((1, 2, 48000 if stream else 8000, 0, "NONE", "not compressed"))
+                for slot in range(length):
+                    if self._closed:
+                        raise RuntimeError("WAV export canceled because the application is closing.")
+                    self._check_recording_available(clip)
+                    result = self._decode(decoder, clip, index.get(slot))
+                    if stream:
+                        for block in stream.decode(result.ambe_frame, packet_loss_concealment=plc):
+                            output.writeframesraw(enhanced_pcm16(block, gain))
+                    else:
+                        output.writeframesraw(result.pcm)
+                if stream:
+                    for block in stream.finish():
+                        output.writeframesraw(enhanced_pcm16(block, gain))
+            self._check_recording_available(clip)
+            if self._closed:
+                raise RuntimeError("WAV export canceled because the application is closing.")
+            temporary.replace(destination)
+        finally:
+            if stream:
+                stream.close()
+            if decoder:
+                decoder.close()
+            temporary.unlink(missing_ok=True)
 
     def _audio_error(self, message: str) -> None:
         with self._condition:

@@ -15,6 +15,17 @@ from .audio import WaveOutPlayer
 from .config import BufferConfig
 
 
+def enhanced_pcm16(output, gain: float) -> bytes:
+    """Convert a complete enhanced block for playback or WAV export."""
+    import numpy as np
+
+    audio = np.asarray(output, dtype=np.float32)
+    if audio.ndim != 1 or len(audio) % 960 or not np.isfinite(audio).all():
+        raise ValueError("ML decoder returned invalid audio")
+    return np.clip(np.rint(audio.astype(np.float64) * (32768.0 * gain)),
+                   -32768, 32767).astype("<i2").tobytes()
+
+
 @dataclass(frozen=True)
 class _Command:
     kind: str
@@ -245,16 +256,10 @@ class ReceiveAudioPlayer:
                     self._on_warning("Audio queue overrun; dropped one decoded frame")
 
     def _write_outputs(self, outputs, gain: float, pending: deque, command: _Command) -> None:
-        # numpy is optional until ML is actually used.
-        import numpy as np
         for output in outputs:
-            audio = np.asarray(output, dtype=np.float32)
-            if audio.ndim != 1 or len(audio) % 960 or not np.isfinite(audio).all():
-                raise ValueError("ML decoder returned invalid audio")
-            pcm = np.clip(np.rint(audio.astype(np.float64) * (32768.0 * gain)),
-                          -32768, 32767).astype("<i2").tobytes()
+            pcm = enhanced_pcm16(output, gain)
             self._write_pcm(pcm, 48_000, command)
-            for _ in range(len(audio) // 960):
+            for _ in range(len(pcm) // 1920):
                 if pending:
                     pending.popleft()
 

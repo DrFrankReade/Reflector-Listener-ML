@@ -4,7 +4,9 @@ Windows D-STAR reflector voice, text and picture client. Download the EXE from R
 
 **The optional ML decoder remains experimental; its enhancement only helps the upper bands.** It now uses the accepted 473,130-step model; expect artifacts and uneven quality, not a finished voice model.
 
-Enable **Settings → Audio → ML Enhanced 48kHz Decoder**. It defaults off and applies to the next reception or replay. Full360 step 473,130 uses 360 ms future context (about 520 ms buffering plus processing). The standard decoder remains available, with automatic fallback on ML failure.
+**Settings → Audio → ML Enhanced 48kHz Decoder** defaults on and applies to the next reception or replay. Full360 step 473,130 uses 360 ms future context (about 520 ms buffering plus processing). The standard decoder remains available, with automatic fallback on ML failure.
+
+Download `DStar_Hosts.json` from [Pi-Star Downloads](https://www.pistar.uk/downloads/) and place it beside the EXE. Use the star to save a reflector and module under **Favorites**. Right-click a completed replay recording to save it as WAV.
 
 Use your own licensed callsign. Settings and logs are stored locally beside the application; none are supplied in this repository.
 

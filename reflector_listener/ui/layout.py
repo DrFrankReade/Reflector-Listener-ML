@@ -12,6 +12,7 @@ from .tooltip import ToolTip
 from .assets import get_add_photo_icon
 from .timeline import MessageTimeline
 from .vu_meter import VuMeter
+from .favorites import Favorites
 
 
 class LayoutMixin:
@@ -155,6 +156,7 @@ class LayoutMixin:
         application_menu = tk.Menu(menu_bar, tearoff=False)
         application_menu.add_command(label="Settings", command=self._open_settings)
         menu_bar.add_cascade(label="File", menu=application_menu)
+        self.favorites = Favorites(self, menu_bar, connection, self._settings.get("favorites"))
         self.root.configure(menu=menu_bar)
         self.root.bind("<Control-comma>", lambda _e: self._open_settings())
         ToolTip(self.reflector_combo, "Choose or enter the reflector to connect to.")

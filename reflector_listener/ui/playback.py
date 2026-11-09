@@ -1,6 +1,9 @@
 """Single-row replay controls disclosed by the message's From label."""
 
+import queue
+import threading
 import tkinter as tk
+from tkinter import filedialog, messagebox
 
 from .seek_bar import SeekBar
 from .tooltip import ToolTip
@@ -22,10 +25,58 @@ class PlaybackControl:
         self._bubble = bubble
         self._last_snapshot = None
         self._header_text = header.cget("text")
+        self._save_menu = tk.Menu(header, tearoff=False)
+        self._save_menu.add_command(label="Save as WAV…", command=self._save_wav)
+        self._saving = False
+        for widget in (header, bubble):
+            widget.bind("<Button-3>", self._show_save_menu, add="+")
         header.configure(cursor="hand2", takefocus=True)
         for event in ("<Button-1>", "<Return>", "<space>"):
             header.bind(event, self._toggle, add="+")
         self.set_header(self._header_text)
+
+    def _show_save_menu(self, event):
+        available = self.clip.complete and not self.clip.expired and not self._saving
+        self._save_menu.entryconfigure(0, state="normal" if available else "disabled")
+        try:
+            self._save_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self._save_menu.grab_release()
+        return "break"
+
+    def _save_wav(self):
+        clip = self.clip
+        parent = self.header.winfo_toplevel()
+        destination = filedialog.asksaveasfilename(
+            parent=parent, title="Save recording as WAV", initialfile="reflector-recording.wav",
+            defaultextension=".wav", filetypes=[("WAV audio", "*.wav")],
+        )
+        if not destination:
+            return
+        self._saving = True
+        result = queue.SimpleQueue()
+        controller = self.controller
+
+        def export():
+            try:
+                controller.save_wav(clip, destination)
+            except Exception as exc:
+                result.put(str(exc))
+            else:
+                result.put(None)
+
+        def check():
+            try:
+                error = result.get_nowait()
+            except queue.Empty:
+                parent.after(100, check)
+                return
+            self._saving = False
+            if error is not None:
+                messagebox.showerror("Could not save recording", error, parent=parent)
+
+        threading.Thread(target=export, name="save-recording-wav").start()
+        parent.after(100, check)
 
     def _build_panel(self) -> None:
         background, foreground = self._bubble.cget("background"), "#596775"
@@ -59,6 +110,8 @@ class PlaybackControl:
         self.error = tk.Label(self.panel, text="", background=background,
                               foreground="#a31515", font=("Segoe UI", 9), wraplength=330)
         self.panel.bind("<Destroy>", self._destroy, add="+")
+        for widget in (self.panel, *self.panel.winfo_children()):
+            widget.bind("<Button-3>", self._show_save_menu, add="+")
 
     def set_header(self, text: str, **style) -> None:
         self._header_text = text

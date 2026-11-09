@@ -135,7 +135,7 @@ class SettingsDialog(tk.Toplevel):
 
     def _transmission(self):
         tab = self.sections["Transmission"]
-        for row, (label, key, default) in enumerate((("Voice suffix", "voice_suffix", "PC"), ("Picture suffix", "picture_suffix", "SSTV"), ("Text suffix", "text_suffix", "TEXT"))):
+        for row, (label, key, default) in enumerate((("Voice suffix", "voice_suffix", "ID53"), ("Picture suffix", "picture_suffix", "SSTV"), ("Text suffix", "text_suffix", "TEXT"))):
             self._entry(tab, row, label, key, f"Up to four letters or digits shown after your call sign as /ABCD. Default /{default}. Applies to the next transmission; blank sends no suffix.", width=6, maxlength=4)
         self._check(tab, 3, "Picture transfer heartbeat beep", "picture_beep", "ON is the default official behavior. Sends Icom-compatible notification tones about once a second during picture transfers. Your choice is saved across restarts.")
 
@@ -160,7 +160,7 @@ class SettingsDialog(tk.Toplevel):
         self._check(tab, 4, "Packet Loss Concealment", "packet_loss_concealment",
                     "ON by default. Conceal short missing-packet gaps using the decoder's bounded repeat/mute policy. FEC stays enabled in either setting.")
         self._check(tab, 5, "ML Enhanced 48kHz Decoder", "ml_enhanced_decoder",
-                    "Experimental, best-effort 48 kHz decoding for received voice and replay. Adds approximately 520 ms of buffering. OFF by default.")
+                    "Experimental upper-band enhancement for received voice and replay. Adds approximately 520 ms of buffering. ON by default.")
         self._preview_changed()
 
     def _device_selector(self, tab, row, label, key, direction):
@@ -261,8 +261,10 @@ class SettingsDialog(tk.Toplevel):
         self._entry(tab, 1, "Max debug logs (MB)", "max_debug_mb", "Total rolling budget for debug and raw hex log files. Default 100 MB (1 MB = 1,000,000 bytes). Oldest files are removed first.", numeric=True)
         self._check(tab, 2, "Save binary reflector stream for replay", "stream_logging", "Record incoming UDP payloads for expandable voice replay. Recordings expire at the storage or history limit, and are deleted on clean exit.")
         self._entry(tab, 3, "Max stream logs (MB)", "max_stream_mb", "Total rolling budget for binary stream files, separate from debug logs. Default 100 MB. Replay mutes incoming voice while reception and recording continue.", numeric=True)
+        self._check(tab, 4, "Clear message list on reflector change", "clear_messages_on_reflector_change",
+                    "Clear messages and their replay clips when connecting to a different reflector or module. ON by default.")
         actions = ttk.Frame(tab)
-        actions.grid(row=4, column=0, columnspan=2, sticky="w", pady=8)
+        actions.grid(row=5, column=0, columnspan=2, sticky="w", pady=8)
         for label, callback, tip in (("Open logs", open_logs, "Open the folder containing debug logs and the binary streams subfolder."),
                                       ("Clear logs", clear_logs, "Clear the Advanced Stream Info display. Saved diagnostic and replay files are retained.")):
             button = ttk.Button(actions, text=label, command=callback)

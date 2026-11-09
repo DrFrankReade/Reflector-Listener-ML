@@ -79,13 +79,21 @@ class MessagesMixin:
         history = getattr(self, "_message_history", {})
         limit = getattr(self, "preferences", Preferences()).message_history_limit
         while len(history) > limit:
-            message = next(iter(history.values()))
-            playback = message.get("playback")
-            if playback is not None and hasattr(self, "stream_log"):
-                if self.replay.state.token == playback.clip.token:
-                    self.replay.stop()
-                self.stream_log.discard(playback.clip)
-            message["row"].destroy()
+            self._discard_message(next(iter(history.values())))
+
+    def _clear_message_history(self) -> None:
+        for message in tuple(getattr(self, "_message_history", {}).values()):
+            self._discard_message(message)
+        self._saved_tx_pictures.clear()
+        self._last_call_summary = None
+
+    def _discard_message(self, message) -> None:
+        playback = message.get("playback")
+        if playback is not None and hasattr(self, "stream_log"):
+            if self.replay.state.token == playback.clip.token:
+                self.replay.stop()
+            self.stream_log.discard(playback.clip)
+        message["row"].destroy()
 
     def _forget_message(self, message) -> None:
         """Release UI indexes when a row is evicted, merged, or discarded."""

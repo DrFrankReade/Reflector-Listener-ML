@@ -47,7 +47,7 @@ from PIL import ImageTk
 from reflector_listener.audio import WaveInRecorder
 from reflector_listener.receive_audio import ReceiveAudioPlayer
 from reflector_listener.decoder import AmbeDecoder, DecoderError, DEFAULT_GAIN, GAIN_PROFILE
-from reflector_listener.hosts import HostDirectory, HostDirectoryError
+from reflector_listener.hosts import HOSTS_FILENAME, HostDirectory, HostDirectoryError
 from reflector_listener.protocols import parse_target
 from reflector_listener.rsms1 import RsMs1Receiver
 from reflector_listener.config import load_buffer_config
@@ -108,6 +108,7 @@ class ListenerApp(LayoutMixin, MessagesMixin, ComposerMixin, EventHandlersMixin)
         self._host_by_name: dict[str, str] = {}
         self._reflector_names: tuple[str, ...] = ()
         self._last_reflector_name = ""
+        self._last_connection_target = None
 
         self.callsign_var = tk.StringVar(value=str(self._settings.get("callsign", "")))
         self.reflector_var = tk.StringVar(
@@ -330,6 +331,11 @@ class ListenerApp(LayoutMixin, MessagesMixin, ComposerMixin, EventHandlersMixin)
         except Exception as exc:
             messagebox.showerror("Cannot connect", str(exc), parent=self.root)
             return
+        target = (config.reflector, config.module)
+        previous = getattr(self, "_last_connection_target", None)
+        if previous is not None and previous != target and self.preferences.clear_messages_on_reflector_change:
+            self._clear_message_history()
+        self._last_connection_target = target
         self._save_settings()
         self._set_controls_for_state(ConnectionState.CONNECTING)
 
@@ -486,6 +492,8 @@ class ListenerApp(LayoutMixin, MessagesMixin, ComposerMixin, EventHandlersMixin)
         temporary = SETTINGS_PATH.with_suffix(".json.tmp")
         if hasattr(self, "preferences"):
             document.update(self.preferences.saved())
+        if hasattr(self, "favorites"):
+            document["favorites"] = self.favorites.saved()
         try:
             temporary.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
             temporary.replace(SETTINGS_PATH)
@@ -636,6 +644,17 @@ def main() -> int:
         root = tk.Tk()
     except tk.TclError as exc:
         print(f"Unable to start the Tk desktop interface: {exc}", file=sys.stderr)
+        return 1
+    if not (APP_DIR / HOSTS_FILENAME).is_file():
+        root.withdraw()
+        messagebox.showerror(
+            "Missing DStar_Hosts.json",
+            f"Download {HOSTS_FILENAME} from the Pi-Star Downloads section at\n"
+            f"https://www.pistar.uk/downloads/\n\n"
+            f"Place it in the program directory:\n{APP_DIR}\n\n"
+            "Then restart Reflector Listener.", parent=root,
+        )
+        root.destroy()
         return 1
     try:
         ListenerApp(root)

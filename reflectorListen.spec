@@ -14,7 +14,7 @@ a = Analysis(
     ['app.py'],
     pathex=[],
     binaries=[('native/bin/mbe-neo.dll', 'native/bin'), *ml_binaries],
-    datas=[('assets', 'assets'), ('DStar_Hosts.json', '.'), ('buffers.toml', '.'),
+    datas=[('assets', 'assets'), ('buffers.toml', '.'),
            ('native/CODEC_VERSION.txt', 'native'), ('native/vendor', 'native/vendor'), *ml_data, *ml_sources],
     hiddenimports=[],
     hookspath=[],

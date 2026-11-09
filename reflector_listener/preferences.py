@@ -14,7 +14,7 @@ from .stations import ANIMALS, COLORS, DEFAULT_AVATAR, AvatarAssignment
 @dataclass(frozen=True)
 class Preferences:
     units: str = "miles"
-    voice_suffix: str = "PC"
+    voice_suffix: str = "ID53"
     station_message: str = ""
     picture_suffix: str = "SSTV"
     text_suffix: str = "TEXT"
@@ -23,13 +23,14 @@ class Preferences:
     grid: str = ""
     send_dprs: bool = False
     picture_beep: bool = True
-    stream_logging: bool = False
-    ml_enhanced_decoder: bool = False
+    stream_logging: bool = True
+    clear_messages_on_reflector_change: bool = True
+    ml_enhanced_decoder: bool = True
     transmit_device: str = ""
     receive_device: str = ""
     transmit_gain: float = 1.0
     packet_loss_concealment: bool = True
-    incoming_avatars: bool = False
+    incoming_avatars: bool = True
     own_avatar_animal: str = DEFAULT_AVATAR.animal
     own_avatar_color: str = DEFAULT_AVATAR.color
     message_history_limit: int = 100
@@ -67,7 +68,8 @@ class Preferences:
             value = getattr(self, key)
             if type(value) is not int or not 1 <= value <= 100000:
                 raise ValueError("Log size must be a whole number from 1 to 100000 MB.")
-        for key in ("send_dprs", "picture_beep", "stream_logging", "incoming_avatars", "ml_enhanced_decoder", "packet_loss_concealment"):
+        for key in ("send_dprs", "picture_beep", "stream_logging", "incoming_avatars",
+                    "ml_enhanced_decoder", "packet_loss_concealment", "clear_messages_on_reflector_change"):
             if type(getattr(self, key)) is not bool:
                 raise ValueError(f"{key} must be on or off.")
         for key in ("transmit_device", "receive_device"):
